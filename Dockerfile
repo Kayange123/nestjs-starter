@@ -34,10 +34,7 @@ ENV HUSKY=0
 
 # Copy package files and install production dependencies
 COPY package.json pnpm-lock.yaml ./
-RUN set -ex && \
-    pnpm config set network-timeout 300000 && \
-    pnpm install --frozen-lockfile --prod --no-optional && \
-    pnpm store prune
+RUN pnpm install --frozen-lockfile --prod --no-optional --ignore-scripts
 
 # Copy build output
 COPY --from=build /app/dist ./dist
