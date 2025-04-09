@@ -30,6 +30,8 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy package files and install production dependencies
 COPY package.json pnpm-lock.yaml ./
+# Set HUSKY=0 to prevent husky installation in production
+ENV HUSKY=0
 RUN pnpm install --prod --frozen-lockfile
 
 # Copy build output
