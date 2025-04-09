@@ -21,7 +21,7 @@ export abstract class AuditingEntity {
   })
   updatedAt: Date;
 
-  @DeleteDateColumn({ type: 'timestamptz' })
+  @DeleteDateColumn({ type: 'timestamptz', nullable: true })
   deletedAt: Date;
 
   update<T>(data: T): this & T {
