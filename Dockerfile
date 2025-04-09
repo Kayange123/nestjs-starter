@@ -28,11 +28,16 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# Set production environment
+ENV NODE_ENV=production
+ENV HUSKY=0
+
 # Copy package files and install production dependencies
 COPY package.json pnpm-lock.yaml ./
-# Set HUSKY=0 to prevent husky installation in production
-ENV HUSKY=0
-RUN pnpm install --frozen-lockfile --production
+RUN set -ex && \
+    pnpm config set network-timeout 300000 && \
+    pnpm install --frozen-lockfile --prod --no-optional && \
+    pnpm store prune
 
 # Copy build output
 COPY --from=build /app/dist ./dist
