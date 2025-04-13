@@ -12,8 +12,8 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, password: string) {
-    const user = await this.usersService.findByEmail(email);
+  async validateUser(userName: string, password: string) {
+    const user = await this.usersService.findByEmailOrPhoneNumber(userName);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -27,7 +27,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<TokenResponseDto> {
-    const user = await this.validateUser(dto.email, dto.password);
+    const user = await this.validateUser(dto.userName, dto.password);
     return this.generateTokens(user);
   }
 

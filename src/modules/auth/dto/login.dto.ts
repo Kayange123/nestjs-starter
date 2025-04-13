@@ -8,7 +8,7 @@ import {
 export class LoginDto {
   @IsEmail()
   @IsNotEmpty()
-  email: string;
+  userName: string;
 
   @IsString()
   @IsNotEmpty()
