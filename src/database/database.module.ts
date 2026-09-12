@@ -1,25 +1,28 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
-
-import { AppConfigModule } from 'src/config/app-config.module';
-import { AppConfigService } from 'src/config/app-config.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AppConfigModule } from '../config/app-config.module';
+import { AppConfigService } from '../config/app-config.service';
+import { databaseOptions } from './database-options';
 
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
       imports: [AppConfigModule],
       inject: [AppConfigService],
-      useFactory: (appConfig: AppConfigService): TypeOrmModuleOptions => ({
-        type: 'postgres',
-        host: appConfig.db.host,
-        port: appConfig.db.port,
-        username: appConfig.db.user,
-        password: appConfig.db.password,
-        database: appConfig.db.name,
-        entities: ['dist/**/*.entity.{ts,js}'],
-        synchronize: appConfig.db.sync,
-        logging: appConfig.db.logging,
-      }),
+      useFactory: (config: AppConfigService) => {
+        const options = databaseOptions(config.db);
+        return {
+          ...options,
+          retryAttempts: 3,
+          retryDelay: 1000,
+          extra: {
+            ...options.extra,
+            connectionTimeoutMillis: 5000,
+            query_timeout: 10000,
+            statement_timeout: 10000,
+          },
+        };
+      },
     }),
   ],
 })
