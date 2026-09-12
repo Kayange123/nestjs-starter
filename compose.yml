@@ -7,11 +7,15 @@ services:
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-starter}
+      POSTGRES_DB: ${DB_NAME:-nestjs_starter}
     ports:
-      - '5432:5432'
+      - '127.0.0.1:${DB_PORT:-5432}:5432'
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres}']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-nestjs_starter}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,7 +32,9 @@ services:
       - /app/node_modules
     env_file: .env
     environment:
-      - DATABASE_HOST=db
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_SYNC=false
       - NODE_ENV=${NODE_ENV:-development}
     ports:
       - '3030:3030'
