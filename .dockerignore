@@ -1,10 +1,18 @@
+node_modules
+.pnpm-store
 dist
 build
-node_modules
-# .git
-# .gitignore
-README.md
+coverage
+.git
+.github
+.husky
+.agents
+.codex
+.env
+.env.*
+!.env.example
 *.log
 .vscode
 .idea
-.env
+docs
+README.md

@@ -7,10 +7,16 @@ import { AppConfigService } from 'src/config/app-config.service';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      validationSchema: appConfigSchema,
-      validationOptions: {
-        allowUnknown: true,
-        abortEarly: false,
+      validate: (env: Record<string, unknown>) => {
+        const result = appConfigSchema.validate(env, {
+          allowUnknown: true,
+          abortEarly: false,
+        });
+        if (result.error)
+          throw new Error(
+            `Invalid configuration fields: ${result.error.details.map((detail) => detail.path.join('.')).join(', ')}`,
+          );
+        return result.value;
       },
       isGlobal: true,
     }),

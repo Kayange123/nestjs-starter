@@ -16,6 +16,7 @@ import { Role } from 'src/modules/auth/entities/role.entity';
 import { AuditingEntity } from 'src/modules/shared/entities/auditing.entity';
 
 @Entity({ name: 'users' })
+@Index('IDX_users_createdAt_id', ['createdAt', 'id'])
 @Index(['firstName', 'lastName', 'email', 'phoneNumber', 'publicUserId'])
 @Unique('users_unique_constraints', ['email', 'phoneNumber', 'publicUserId'])
 export class User extends AuditingEntity {
@@ -34,13 +35,13 @@ export class User extends AuditingEntity {
   @Column({ type: 'varchar', length: 30, unique: true, nullable: true })
   email: string;
 
-  @Column({ type: 'varchar', length: 15, unique: true })
+  @Column({ type: 'varchar', length: 15, unique: true, nullable: true })
   phoneNumber: string;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   bio: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, select: false })
   password: string;
 
   @ManyToMany(() => Role)
@@ -65,7 +66,7 @@ export class User extends AuditingEntity {
   @BeforeUpdate()
   // Generate default avatar if not provided
   generateDefaultAvatar() {
-    if (!this.avatarUrl) {
+    if (!this.avatarUrl && this.email) {
       // Generate a hash from the email address
       // and use it to create a Gravatar URL
       // Note: Gravatar requires the email to be lowercased
@@ -78,29 +79,29 @@ export class User extends AuditingEntity {
   }
 
   @BeforeInsert()
-  @BeforeUpdate()
-  async hashPasswordBeforeInsertOrUpdate() {
-    if (this.password && !this.password.includes(':')) {
-      this.password = await User.hashPassword(this.password);
-    }
+  generatePublicUserId() {
+    this.publicUserId ??= crypto.randomUUID();
   }
 
   static async hashPassword(password: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const salt = crypto.randomBytes(16).toString('hex');
       crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-        if (err) reject(err);
+        if (err) return reject(err);
         resolve(`${salt}:${derivedKey.toString('hex')}`);
       });
     });
   }
 
   async verifyPassword(plainTextPassword: string): Promise<boolean> {
+    if (!/^[a-f0-9]{32}:[a-f0-9]{128}$/.test(this.password ?? '')) return false;
     const [salt, storedHash] = this.password.split(':');
     return new Promise((resolve, reject) => {
       crypto.scrypt(plainTextPassword, salt, 64, (err, derivedKey) => {
-        if (err) reject(err);
-        resolve(storedHash === derivedKey.toString('hex'));
+        if (err) return reject(err);
+        resolve(
+          crypto.timingSafeEqual(Buffer.from(storedHash, 'hex'), derivedKey),
+        );
       });
     });
   }
@@ -121,7 +122,7 @@ export class User extends AuditingEntity {
       avatarUrl: this.avatarUrl,
       phoneNumber: this.phoneNumber,
       publicUserId: this.publicUserId,
-      roles: this.roles.map((r) => r?.toListDto),
+      roles: (this.roles ?? []).map((r) => r?.toListDto),
     };
   }
 }

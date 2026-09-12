@@ -1,0 +1,4 @@
+# Nest 11 pins Multer 2.2.0; keep this scoped patch until upstream advances it.
+# GHSA-wc9g-mqfw-jrwm, GHSA-qfvm-cv95-jqjf, GHSA-qvfw-j98x-7q72, GHSA-535w-7cp7-47q4.
+overrides:
+  '@nestjs/platform-express>multer': 2.3.0
