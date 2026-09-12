@@ -1,271 +1,93 @@
-# NestJS API Starter Kit
+# NestJS API Starter
 
-A comprehensive, production-ready NestJS API starter kit with authentication, role-based access control, database integration, and many more enterprise-ready features.
+A NestJS 11 and TypeORM PostgreSQL starter with persisted authentication sessions, explicit user-query contracts and a tested container workflow. The eight-step hardening implementation is complete; [release readiness](docs/release-readiness.md) records the evidence and deployment work that remains.
 
-## Features
+## Included
 
-- 🔒 **Authentication & Authorization**
+- Short-lived access JWTs, rotating opaque refresh tokens, replay detection and logout/session revocation.
+- Admin and owner authorization, safe user response mapping and strict DTO validation.
+- Bounded offset pagination with resource-specific search, date filters and sort allowlists.
+- Versioned APIs, configurable development Swagger, exact-origin CORS, Helmet and body limits.
+- PostgreSQL migrations and repeatable seeds with no default administrator credentials.
+- Request IDs, structured logs, liveness/readiness, shutdown hooks and a non-root production image.
+- Lint, formatting, type checking, unit/HTTP/database tests and container verification in CI.
 
-  - JWT Authentication with refresh tokens
-  - Role-based access control (RBAC)
-  - Permission-based access control
-  - CSRF protection
-  - Rate limiting and throttling
+Permissions are stored in the schema; current user routes enforce roles/ownership. There is no general permission-management API, tracing backend, email verification, password recovery or MFA.
 
-- 🛠️ **Core Infrastructure**
+## Start locally
 
-  - Modular architecture following NestJS best practices
-  - PostgreSQL integration with TypeORM
-  - In-memory caching support
-  - Comprehensive logging with Winston
-  - Health check endpoints with detailed system monitoring
-  - Request/response validation with class-validator
-  - API versioning with proper routing structure
+Use Node **22.22.3**, pnpm **11.3.0**, and PostgreSQL 16. Docker is optional when PostgreSQL is already available.
 
-- 📊 **Developer Experience**
-
-  - Swagger/OpenAPI documentation
-  - Environment configuration with validation
-  - Automated testing infrastructure (unit, integration, e2e)
-  - Docker & Docker Compose for local development
-  - GitHub Actions CI/CD workflows
-  - Linting and code formatting (ESLint, Prettier)
-  - Git hooks with Husky and lint-staged
-  - Conventional commits enforcement
-
-- 🔄 **Database Tools**
-
-  - Database migrations
-  - Data seeding (development, testing, production)
-  - Query pagination support
-
-- 🔧 **Production Ready**
-  - Optimized Docker images with multi-stage builds
-  - API error handling and standardized responses
-  - CORS configuration
-  - Helmet security headers
-  - Health monitoring and metrics
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js (v20+)
-- PNPM (v8+)
-- PostgreSQL (v16+)
-- Docker & Docker Compose (optional)
-
-### Local Installation
-
-1. Clone this repository
-2. Install dependencies:
-
-   ```bash
-   pnpm install
-   ```
-
-3. Create a `.env` file from the example:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-4. Update the `.env` file with your configuration
-
-5. Start the application:
-
-   ```bash
-   pnpm start:dev
-   ```
-
-### Docker Setup
-
-Run the application with Docker:
-
-```bash
-# Development mode with hot reload
-docker compose build
-docker compose up -d
-
-# Production mode
-NODE_ENV=production docker compose up -d
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+cp .env.example .env
 ```
 
-## Health Monitoring
+Set database credentials and a random `JWT_SECRET` of at least 32 characters in `.env`. Keep `DB_SYNC=false`. For a local database:
 
-The application includes comprehensive health checks at `/v1/health` that monitor:
-
-- API status
-- Database connectivity
-- Disk storage usage
-- Memory usage
-
-## Caching Strategy
-
-The application uses NestJS's built-in in-memory caching system for performance optimization.
-
-Configure cache TTL in your .env file:
-
-```ruby
-CACHE_TTL=300  # Time-to-live in seconds (default is 5 minutes)
+```sh
+docker compose up -d db
+pnpm db:migrate
+pnpm db:seed
+pnpm start:dev
 ```
 
-## Security Features
+Seeding creates roles and permissions only. Supply administrator credentials explicitly when needed; see [database setup and upgrades](docs/database.md). Existing databases must follow the upgrade procedure before running migrations.
 
-### CSRF Protection
+The API defaults to port 3030. Swagger is at `/docs` outside production when enabled. Production requires `SWAGGER_ENABLED=false`.
 
-CSRF protection is enabled by default for all non-GET endpoints. The CSRF token is provided in the response header `csrf-token` for any GET request and must be included in subsequent non-GET requests either as:
+## API contracts
 
-- `csrf-token` or `x-csrf-token` header
-- `_csrf` property in the request body
+Authentication routes are under `/v1/auth`. Login accepts `userName` and `password`; successful login/register returns `{ data: { accessToken, refreshToken, expiresIn } }`. Send access tokens in `Authorization: Bearer ...`; refresh tokens are explicit request-body values. No authentication cookie or CSRF-token exchange is used. See [authentication](docs/authentication.md).
 
-### Rate Limiting
+User listing requires Admin authorization:
 
-API rate limiting is configured at 100 requests per minute by default. Customize in `.env`:
-
-```ruby
-THROTTLE_TTL=60000
-THROTTLE_LIMIT=100
+```http
+GET /v1/users?page=1&limit=10&q=kayange&sortBy=createdAt&order=DESC
 ```
 
-## API Versioning
-
-API versioning is enabled through URI paths. Endpoints are accessible at `/v1/resource`.
-
-When introducing breaking changes, create new controllers under a new version namespace.
-
-## Testing
-
-```bash
-# Run unit tests
-pnpm test
-
-# Run e2e tests
-pnpm test:e2e
-
-# Generate test coverage
-pnpm test:cov
+```json
+{
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "totalItems": 0,
+    "totalPages": 0,
+    "hasNextPage": false,
+    "hasPreviousPage": false
+  }
+}
 ```
 
-## CI/CD
+Page size is limited to 100. Search is a literal substring of name/email; date filters use `createdFrom`/`createdTo`. Sortable fields are `id`, `firstName`, `lastName`, `email`, and `createdAt`. Arbitrary fields, relations, multi-sort and unpaginated requests are rejected. See [query and pagination contract](docs/user-queries.md).
 
-Continuous Integration and Deployment is set up using GitHub Actions:
+Individual user reads and updates require ownership or Admin. Create/list/delete require Admin. Individual user responses use `{ data: user }`; logout returns 204. Errors use `{ statusCode, message, timestamp, ... }`. [Release notes](CHANGELOG.md) enumerate intentional breaking changes.
 
-- **CI Pipeline**: Runs on all pushes to `main` and `develop` branches and all PRs
+## Verify and build
 
-  - Linting and type checking
-  - Unit and integration tests
-  - Test coverage reporting
-
-- **CD Pipeline**:
-  - Triggered by pushes to `main` (deploys to staging)
-  - Triggered by version tags (deploys to production)
-  - Builds and pushes Docker images to GitHub Container Registry
-  - Supports seamless deployment to multiple environments
-
-## API Documentation
-
-Swagger documentation is available at `/docs` when the application is running.
-
-## Available Scripts
-
-- `pnpm start:dev` - Start the application in development mode
-- `pnpm build` - Build the application
-- `pnpm start:prod` - Start the application in production mode
-- `pnpm test` - Run tests
-- `pnpm test:watch` - Run tests in watch mode
-- `pnpm test:cov` - Run tests with coverage
-- `pnpm test:e2e` - Run end-to-end tests
-- `pnpm lint` - Run linting
-- `pnpm format` - Run code formatting
-- `pnpm typecheck` - Run type checking
-- `pnpm migration:generate -- src/database/migrations/MigrationName` - Generate a new migration
-- `pnpm migration:run` - Run migrations
-- `pnpm migration:revert` - Revert the last migration
-- `pnpm seed:init` - Seed the database with initial data
-
-## Project Structure
-
-```ruby
-src/
-├── app.controller.ts        # App controller
-├── app.module.ts            # Main application module
-├── app.service.ts           # App service
-├── main.ts                  # Application entry point
-├── config/                  # Configuration management
-├── database/                # Database setup and migrations
-├── filters/                 # Global exception filters
-├── guards/                  # Authentication guards
-├── interceptors/            # HTTP interceptors
-├── lib/                     # Shared libraries
-│   ├── cache/               # Caching implementation
-│   └── logger/              # Logging implementation
-├── modules/                 # Feature modules
-│   ├── auth/                # Authentication module
-│   ├── health/              # Health check module
-│   ├── shared/              # Shared module
-│   └── users/               # Users module
-├── pipes/                   # Validation pipes
-├── security/                # Security features
-│   └── csrf/                # CSRF protection
-└── seeders/                 # Database seeders
+```sh
+pnpm lint
+pnpm format:check
+pnpm typecheck
+pnpm test --runInBand
+pnpm test:e2e --runInBand
+pnpm build
 ```
 
-## Git Workflow and Conventions
+Set `TEST_DATABASE_URL` to a disposable PostgreSQL database, then run `pnpm test:integration`. The suites create/drop isolated schemas.
 
-### Husky Git Hooks
-
-This project uses [Husky](https://typicode.github.io/husky) to enforce code quality and consistency through Git hooks:
-
-- **pre-commit**: Runs linting and formatting on staged files using lint-staged
-- **pre-push**: Runs tests and type checking before pushing to remote
-- **commit-msg**: Validates commit messages against conventional commit format
-
-Husky ensures that all code meets the project's quality standards before being committed or pushed.
-
-### Conventional Commits
-
-We enforce the [Conventional Commits](https://www.conventionalcommits.org/) specification for commit messages. Each commit message must follow this format:
-
-```bash
-type(scope): message [#issue-number]
+```sh
+docker build --target production -t nestjs-starter:local .
+node scripts/container-smoke.cjs nestjs-starter:local
 ```
 
-**Types allowed** (from commitlint.config.js):
+The smoke test creates and removes its own Docker resources. The production image starts Node directly; execute database jobs as `node dist/database/cli.js migrate` in a separate container. Development Compose uses source mounts and is not a production deployment configuration. See [tooling and delivery](docs/tooling.md).
 
-- `feat`: A new feature
-- `fix`: A bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, etc.)
-- `refactor`: Code changes that neither fix bugs nor add features
-- `perf`: Performance improvements
-- `test`: Adding or updating tests
-- `chore`: Changes to the build process, tools, etc.
-- `revert`: Reverting a previous commit
+CI runs verification and a production dependency audit. Publishing to GHCR is manual and gated on CI; no deployment is automated. Registry tags identify commits, but deployments should use image digests.
 
-**Rules**:
+## Operations and contribution
 
-- Header length must not exceed 72 characters
-- A reference to an issue is required
-- Type must be one of the allowed types listed above
+Liveness: `/v1/health/ping`. PostgreSQL readiness: `/v1/health/ready` and `/v1/health`. Readiness failures return 503. CORS uses an exact-origin allowlist. Rate limits and caching are per process; proxy trust is disabled. See [operations](docs/operations.md) before deploying behind proxies or using multiple replicas.
 
-**Examples**:
-
-```bash
-feat(auth): implement refresh token rotation #123
-fix(api): resolve race condition in request handler #456
-docs(readme): update deployment instructions #789
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a new feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Commit your changes using conventional commits
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
-
-## License
-
-MIT
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the [engineering report](docs/engineering-report.md). The package is intentionally private to prevent accidental npm publication. Maintainer identity, security reporting ownership and license publication must be confirmed before an external release.
