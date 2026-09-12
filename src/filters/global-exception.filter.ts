@@ -38,18 +38,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     // Log exception with context for debugging
     this.#logException(exception, {
-      path: request.url,
+      route: request.route?.path ?? 'unmatched',
+      requestId: response.getHeader('x-request-id'),
       method: request.method,
       statusCode: status,
-      ip: request.ip,
     });
 
     response.status(status).json(
       this.#buildResponseBody({
+        status,
         message,
         error,
         errors,
-        path: request.url,
+        path: request.path,
       }),
     );
   }
@@ -122,13 +123,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
    * @param exception The database exception
    * @returns Formatted exception data
    */
-  #handleDatabaseError(exception: QueryFailedError) {
+  #handleDatabaseError(_exception: QueryFailedError) {
     const status = HttpStatus.BAD_REQUEST;
     const message = 'Database query failed';
-    const error =
-      this.nodeEnv === 'development'
-        ? (exception as any).detail || exception.message
-        : 'A database error occurred';
+    const error = 'A database error occurred';
 
     return { status, message, error, errors: null };
   }
@@ -138,16 +136,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
    * @param exception Any error
    * @returns Formatted exception data
    */
-  #handleGenericError(exception: unknown) {
+  #handleGenericError(_exception: unknown) {
     const status = HttpStatus.INTERNAL_SERVER_ERROR;
-    const message =
-      exception instanceof Error
-        ? exception.message
-        : 'An unexpected error occurred';
-    const error =
-      exception instanceof Error && this.nodeEnv === 'development'
-        ? exception.stack
-        : null;
+    const message = 'An unexpected error occurred';
+    const error = null;
 
     return { status, message, error, errors: null };
   }
@@ -188,20 +180,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
    * @param context Additional context information
    */
   #logException(exception: unknown, context: Record<string, any>): void {
-    const errorMessage =
-      exception instanceof Error ? exception.message : 'Unknown error';
-
-    if (context.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      this.logger.error(
-        errorMessage,
-        exception instanceof Error ? exception.stack : undefined,
-        context,
-      );
-    } else if (context.statusCode >= HttpStatus.BAD_REQUEST) {
-      this.logger.warn(`${errorMessage} - ${JSON.stringify(context)}`);
-    } else {
-      this.logger.debug(`Exception caught: ${errorMessage}`, context);
-    }
+    this.logger.warn({
+      ...context,
+      errorType: exception instanceof Error ? exception.name : 'UnknownError',
+    });
   }
 
   /**
@@ -210,20 +192,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
    * @returns Response body object
    */
   #buildResponseBody({
+    status,
     message,
     error,
     errors,
     path,
   }: {
+    status: number;
     message: string;
     error?: any;
     errors?: Record<string, any>;
     path?: string;
   }): ErrorResponse {
     const responseBody: ErrorResponse = {
-      statusCode: error
-        ? HttpStatus.BAD_REQUEST
-        : HttpStatus.INTERNAL_SERVER_ERROR,
+      statusCode: status,
       message,
       timestamp: new Date().toISOString(),
     };

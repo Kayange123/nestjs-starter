@@ -1,3 +1,5 @@
+import { PaginationMeta } from '../../modules/shared/dto/paginated-result';
+export { PaginationMeta } from '../../modules/shared/dto/paginated-result';
 import { Injectable } from '@nestjs/common';
 
 /**
@@ -10,18 +12,6 @@ export interface ApiResponse<T> {
   message?: string;
   errors?: any[];
   timestamp: string;
-}
-
-/**
- * Pagination metadata interface
- */
-export interface PaginationMeta {
-  page: number;
-  limit: number;
-  totalItems: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
 }
 
 /**

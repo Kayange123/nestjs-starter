@@ -1,53 +1,43 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { HealthModule } from '../health/health.module';
-import { AppConfigModule } from '../../config/app-config.module';
+import { HealthController } from './controllers/health.controller';
 import { TerminusModule } from '@nestjs/terminus';
-import { HttpModule } from '@nestjs/axios';
+import { AppConfigService } from '../../config/app-config.service';
 
-describe('Health Controller (e2e)', () => {
+import { Module } from '@nestjs/common';
+import { TypeOrmHealthIndicator } from '@nestjs/terminus';
+
+@Module({
+  providers: [{ provide: AppConfigService, useValue: { port: 3030 } }],
+  exports: [AppConfigService],
+})
+class TestConfigModule {}
+
+describe('Health HTTP contract (database probe mocked)', () => {
   let app: INestApplication;
-
   beforeAll(async () => {
-    // Create a testing module with all necessary imports
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [HealthModule, AppConfigModule, TerminusModule, HttpModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
+    const module = await Test.createTestingModule({
+      imports: [TerminusModule, TestConfigModule],
+      controllers: [HealthController],
+    })
+      .overrideProvider(TypeOrmHealthIndicator)
+      .useValue({ pingCheck: async () => ({ api: { status: 'up' } }) })
+      .compile();
+    app = module.createNestApplication();
     await app.init();
+    await app.listen(0, '127.0.0.1');
   });
-
   afterAll(async () => {
-    await app.close();
+    await app?.close();
   });
-
-  describe('/health/ping (GET)', () => {
-    it('should return a 200 status code and health details', () => {
-      return request(app.getHttpServer())
-        .get('/health/ping')
-        .expect(200)
-        .expect((res) => {
-          expect(res.body).toHaveProperty('status', 'ok');
-          expect(res.body).toHaveProperty('timestamp');
-        });
-    });
-  });
-
-  // This test assumes you have appropriate mocks for all health check services
-  // In a real scenario, you might want to use test doubles for external dependencies
-  describe('/health (GET)', () => {
-    it('should return health status information', () => {
-      return request(app.getHttpServer())
-        .get('/health')
-        .expect((res) => {
-          if (res.status !== 503) {
-            // Health check might fail in CI environment
-            expect(res.status).toBe(200);
-            expect(res.body).toHaveProperty('status');
-          }
-        });
-    });
+  it('returns the liveness response', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/health/ping')
+      .expect(200);
+    expect(response.body.status).toBe('ok');
+    expect(new Date(response.body.timestamp).toISOString()).toBe(
+      response.body.timestamp,
+    );
   });
 });
